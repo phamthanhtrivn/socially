@@ -6,13 +6,13 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 // This function is used to sync the user data from Clerk to the database
 export async function syncUser() {
   try {
-    const { userId } = await auth();
+    const { userId: clerkId } = await auth();
     const user = await currentUser();
-    if (!userId || !user) return;
+    if (!clerkId || !user) return;
 
     // check if user exists
     const existingUser = await prisma.user.findUnique({
-      where: { clerkId: userId },
+      where: { clerkId },
     });
 
     if (existingUser) {
@@ -21,9 +21,8 @@ export async function syncUser() {
 
     const dbUser = await prisma.user.create({
       data: {
-        clerkId: userId,
+        clerkId,
         name: `${user.firstName || ""} ${user.lastName || ""}`,
-        // john@gmail.com
         username:
           user.username ?? user.emailAddresses[0]?.emailAddress.split("@")[0],
         email: user.emailAddresses[0]?.emailAddress,
@@ -52,4 +51,15 @@ export async function getUserByClerkId(clerkId: string) {
       },
     },
   });
+}
+
+export async function getDbUserId() {
+  const { userId: clerkId } = await auth();
+  if (!clerkId) throw new Error("Unauthorized");
+
+  const user = await getUserByClerkId(clerkId);
+
+  if (!user) throw new Error("User not found");
+
+  return user.id;
 }
